@@ -1,0 +1,63 @@
+---
+- name: Create OpsGenie Services 
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Get List of all Teams
+      uri:
+        method: GET
+        url: "https://api.opsgenie.com/v2/teams"
+        headers:
+          Authorization: "GenieKey {{ api_key }}"
+        return_content: yes
+      register: team_id
+      ignore_errors: true
+
+    - name: extract team ID from existing team list
+      set_fact:
+        existing_teams: "{{ existing_teams|default([]) + [{ 'name': item.name, 'id': item.id}] }}"
+      with_items: "{{ team_id.json.data }}"
+
+    - name: get the lists of team names per list
+      set_fact:
+        teamlist_1: "{{ service | map(attribute='team') | list }}"
+        teamlist_2: "{{ existing_teams | map(attribute='name') | list }}"
+
+    - name: get the names that exist in service but not in existing_teams
+      set_fact:
+        names_not_in_my_dict: "{{ teamlist_1 | difference(teamlist_2) }}"
+
+    - name: merge the dictionaries when the name is matched
+      set_fact:
+        all: "{{ all|default([]) + [item[0] | combine(item[1])] }}"
+      when: item[0].team == item[1].name
+      loop: "{{ query('nested', service, existing_teams) }}"
+
+    - name: add all the teams elements that dont have entry in existing_teams
+      set_fact:
+        all: "{{ all + [item] }}"
+      when: 
+        - item.name not in names_not_in_my_dict
+        - item.id is defined
+      loop: "{{ service }}"
+
+    - name: create service if it doesnt exist
+      uri:
+        method: POST
+        url: https://api.opsgenie.com/v1/services
+        headers:
+          Content-Type: application/json
+          Authorization: "GenieKey {{ api_key }}"
+        body:
+          teamId: "{{ item.id }}"
+          name: "{{ item.svc_name }}"
+          description: "{{ item.description|default(omit) }}"
+          visability: "{{ item.visability|default(omit) }}"
+        body_format: json
+        return_json: true
+        status_code: 200,400
+      when: item.id is defined
+      with_items:
+        "{{ all }}"
+      register: team_created
+      changed_when: team_created.status == 200
