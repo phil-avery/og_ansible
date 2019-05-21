@@ -1,0 +1,38 @@
+---
+- name: Create OpsGenie Alert
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Create Alert
+      uri:
+        method: POST
+        url: "https://api.opsgenie.com/v2/alerts"
+        headers:
+          Authorization: "GenieKey {{ api_key }}"
+          Content-Type: application/json
+        body:
+          message: "{{ item.message }}"
+          alias: "{{ item.alias | default(omit) }}"
+          description: "{{ user.description | default(omit) }}"
+          responders: "{{ item.responders | default(omit) }}"
+          visibleTo: "{{ item.visableTo | default(omit) }}"
+          actions: "{{ item.actions | default(omit) }}"
+          tags: "{{ item.tags | default(omit) }}"
+          details: "{{ item.details | default(omit) }}"
+          entity: "{{ user_alias | default(omit) }}"
+          source: "{{ item_source | default(omit) }}"
+          priority: "{{ user_alias | default(omit) }}"
+          user: "{{ item.user | default(omit) }}"
+          note: "{{ item.note | default(omit) }}"
+        body_format: json
+        return_json: true
+        status_code: 202
+      with_items:
+        "{{ alert }}"
+      register: alert_created
+      changed_when: alert_created.status == 202
+
+    - name: Display the Alert ID
+      debug:
+        var: item.json.requestId
+      with_items: "{{ alert_created.results }}"
