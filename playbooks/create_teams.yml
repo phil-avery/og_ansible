@@ -1,0 +1,39 @@
+---
+- name: Create OpsGenie Teams
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Get List of all Teams
+      uri:
+        method: GET
+        url: "https://api.opsgenie.com/v2/teams"
+        headers:
+          Authorization: "GenieKey {{ api_key }}"
+        return_content: yes
+      register: team_id
+      ignore_errors: true
+
+    - name: Create a list of all existing team names and respected ID's
+      set_fact:
+        existing_team_id: "{{ team_id.json.data | map(attribute='id') | list }}"
+        existing_team_name: "{{ team_id.json.data | map(attribute='name') | list }}"
+
+    - name: create team if it doesnt exist
+      uri:
+        method: POST
+        url: https://api.opsgenie.com/v2/teams
+        headers:
+          Content-Type: application/json
+          Authorization: "GenieKey {{ api_key }}"
+        body:
+          name: "{{ item.name }}"
+          description: "{{ item.description | default(omit) }}"
+          members: "{{ item.members | default(omit) }}"
+        body_format: json
+        return_json: true
+        status_code: 201
+      when: item.name not in existing_team_name
+      with_items:
+        - "{{ team }}"
+      register: team_created
+      changed_when: team_created.status == 201
