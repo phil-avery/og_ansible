@@ -1,0 +1,50 @@
+---
+- name: Create OpsGenie Users
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Get List of all Users
+      uri:
+        method: GET
+        url: "https://api.opsgenie.com/v2/users"
+        headers:
+          Authorization: "GenieKey {{ api_key }}"
+        return_content: yes
+      register: existing_users
+      ignore_errors: true
+
+    - name: Create a list of all existing team names and respected ID's
+      set_fact:
+        existing_names: "{{ existing_users.json.data | map(attribute='username') | list }}"
+
+    - name: create users if they dont already exist
+      uri:
+        method: POST
+        url: https://api.opsgenie.com/v2/users
+        headers:
+          Content-Type: application/json
+          Authorization: "GenieKey {{ api_key }}"
+        body:
+          username: "{{ item.username }}"
+          fullName: "{{ item.fullname }}"
+          role:
+            name: "{{ item.role }}"
+          skypeUsername: "{{ item.skypeUsername | default() }}"
+          timeZone: "{{ item.timezone | default(omit) }}"
+          locale: "{{ item.locale | default(omit) }}"
+          userAddress:
+            country: "{{ item.country | default(omit) }}"
+            state: "{{ item.state | default(omit) }}"
+            city: "{{ item.city | default(omit) }}"
+            line: "{{ item.line | default(omit) }}"
+            zipCode: "{{ item.zipCode | default(omit) }}"
+          details: "{{ item.details | default(omit) }}"
+          tags: "{{ item.tag | default(omit) }}"
+        body_format: json
+        return_json: true
+        status_code: 201
+      when: item.username not in existing_names
+      with_items:
+        - "{{ users }}"
+      register: user_created
+      changed_when: user_created.status == 201
