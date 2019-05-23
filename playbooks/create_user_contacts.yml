@@ -1,0 +1,24 @@
+---
+- name: Create OpsGenie Users
+  hosts: localhost
+  gather_facts: False
+  tasks:
+    - name: Set users contact information
+      uri:
+        method: POST
+        url: 'https://api.opsgenie.com/v2/users/{{ item.0.name }}/contacts'
+        headers:
+          Content-Type: application/json
+          Authorization: "GenieKey {{ api_key }}"
+        body:
+          method: "{{ item.1.method }}"
+          to: "{{ item.1.to }}"
+        body_format: json
+        status_code: 201,422
+        return_content: true
+      changed_when: users_contacts.status == 201
+      ignore_errors: true
+      with_subelements: 
+        - "{{ user }}"
+        - methods
+      register: users_contacts
